@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<head>
+  <meta charset="utf-8" />
+  <script src="https://d3js.org/d3.v6.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <script>
+    var width = 700,
+      height = 580;
+    /** INITIALISATION **/
+    var svg = d3
+      .select("body")
+      .append("svg")
+      .attr("width", width)
+      .attr("height", height);
+
+    // On rajoute un groupe englobant toute la visualisation pour plus tard
+    var g = svg.append("g");
+
+    var projection = d3
+      .geoConicConformal()
+      .center([2.454071, 46.279229])
+      .scale(2800);
+
+    var path = d3.geoPath().projection(projection);
+
+    var tooltip = d3
+      .select("body")
+      .append("div")
+      .attr("class", "hidden tooltip");
+
+    /******************************/
+
+    dict = {};
+
+    /** Chargement des data **/
+
+    var color = d3
+      .scaleQuantize()
+      .range([
+        "#f7fcfd",
+        "#e5f5f9",
+        "#ccece6",
+        "#99d8c9",
+        "#66c2a4",
+        "#41ae76",
+        "#238b45",
+        "#006d2c",
+        "#00441b"
+      ]);
+
+    d3.csv("covid.csv").then(function (data) {
+      color.domain([0, 5000]);
+
+      d3.json("region.geojson").then(function (json) {
+        for (var i = 0; i < data.length; i++) {
+          var dataHosp = data[i].hosp;
+          //Nom de l'etat
+          var dataDepartement = data[i].Département;
+
+          //Valeur associee a l'etat
+          var dataValue = parseFloat(data[i].dep);
+
+          //Recherche de l'etat dans le GeoJSON
+          for (var j = 0; j < json.features.length; j++) {
+            hosp = 0;
+            var jsonDepartement = json.features[j].properties.name;
+
+            if (dataDepartement == jsonDepartement) {
+              //On injecte la valeur de l'Etat dans le json
+              json.features[j].properties.value = dataValue;
+
+              // Pas besoin de chercher plus loin
+              break;
+            }
+          }
+        }
+
+        tabHosp = [];
+        cpt = 0;
+        g.selectAll("path")
+          .data(json.features)
+          .enter()
+          .append("path")
+          .attr("d", path)
+          .style("fill", function (d) {
+            //on prend la valeur recuperee plus haut
+
+            hosp = 0;
+            var value = d.properties.nom;
+            for (var i = 0; i < data.length; i++) {
+              valDep = data[i].Département;
+
+              if (d.properties.nom == valDep) {
+                hosp += parseFloat(data[i].hosp);
+              }
+            }
+
+            dict[d.properties.nom] = hosp;
+
+            if (hosp) {
+              console.log(d.properties.nom + " : " + parseFloat(hosp));
+              return color(hosp);
+            } else {
+              // si pas de valeur alors en gris
+              return "#ccc";
+            }
+          })
+          .on("mousemove", function (event, d) {
+            tooltip
+              .classed("hidden", false)
+              .html(d.properties.nom + ": " + dict[d.properties.nom]);
+          });
+      });
+    });
+  </script>
+</body>
